@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
+	"sort"
 	"strings"
 )
 
@@ -364,6 +365,8 @@ func (c *Conn) Getdir(dir string, rev int64, off, lim int) (names []string, err 
 			return
 		}
 	}
+	sort.Strings(names)
+
 	return
 }
 
