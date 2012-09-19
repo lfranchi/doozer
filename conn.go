@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
-	"sort"
 	"strings"
 )
 
@@ -331,8 +330,9 @@ func (c *Conn) Get(file string, rev *int64) ([]byte, int64, error) {
 // A negative lim means to read until the end.
 func (c *Conn) Getdir(dir string, rev int64, off, lim int) (names []string, err error) {
 	type reply struct {
-		name string
-		err  error
+		name  string
+		err   error
+		index int
 	}
 	size, _, err := c.Stat(dir, &rev)
 	if err != nil {
@@ -341,33 +341,32 @@ func (c *Conn) Getdir(dir string, rev int64, off, lim int) (names []string, err 
 	if off+lim > size || lim == -1 {
 		lim = size - off
 	}
+	names = make([]string, lim)
 	replies := make(chan reply)
 
 	for i := 0; i < lim; i++ {
-		go func(off int) {
+		go func(index int) {
 			var t txn
 			t.req.Verb = newRequest_Verb(request_GETDIR)
 			t.req.Rev = &rev
 			t.req.Path = &dir
-			t.req.Offset = proto.Int32(int32(off))
+			t.req.Offset = proto.Int32(int32(index + off))
 			err := c.call(&t)
 			if err != nil {
 				replies <- reply{err: err}
 				return
 			}
-			replies <- reply{name: *t.resp.Path}
-		}(i + off)
+			replies <- reply{name: *t.resp.Path, index: index}
+		}(i)
 	}
 	for i := 0; i < lim; i++ {
 		res := <-replies
 		if res.err == nil {
-			names = append(names, res.name)
+			names[res.index] = res.name
 		} else {
 			return nil, err
 		}
 	}
-	sort.Strings(names)
-
 	return
 }
 
