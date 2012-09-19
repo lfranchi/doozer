@@ -346,7 +346,7 @@ func (c *Conn) Getdir(dir string, rev int64, off, lim int) (names []string, err 
 			t.req.Rev = &rev
 			t.req.Path = &dir
 			t.req.Offset = proto.Int32(int32(off))
-			err = c.call(&t)
+			err := c.call(&t)
 			if err, ok := err.(*Error); ok && err.Err == ErrRange {
 				return
 			}
