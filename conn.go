@@ -330,16 +330,20 @@ func (c *Conn) Get(file string, rev *int64) ([]byte, int64, error) {
 // Names are read in lexicographical order, starting at position off.
 // A negative lim means to read until the end.
 func (c *Conn) Getdir(dir string, rev int64, off, lim int) (names []string, err error) {
-	if lim == -1 {
-		lim, _, err = c.Stat(dir, &rev)
-		if err != nil {
-			return
-		}
+	type reply struct {
+		name string
+		err  error
 	}
-	errch := make(chan error, 1)
-	namech := make(chan string, 1)
+	size, _, err := c.Stat(dir, &rev)
+	if err != nil {
+		return nil, err
+	}
+	if off+lim > size || lim == -1 {
+		lim = size - off
+	}
+	replies := make(chan reply)
 
-	for i := off; i < lim; i++ {
+	for i := 0; i < lim; i++ {
 		go func(off int) {
 			var t txn
 			t.req.Verb = newRequest_Verb(request_GETDIR)
@@ -347,22 +351,19 @@ func (c *Conn) Getdir(dir string, rev int64, off, lim int) (names []string, err 
 			t.req.Path = &dir
 			t.req.Offset = proto.Int32(int32(off))
 			err := c.call(&t)
-			if err, ok := err.(*Error); ok && err.Err == ErrRange {
-				return
-			}
 			if err != nil {
-				errch <- err
+				replies <- reply{err: err}
 				return
 			}
-			namech <- *t.resp.Path
-		}(i)
+			replies <- reply{name: *t.resp.Path}
+		}(i + off)
 	}
-	for i := off; i < lim; i++ {
-		select {
-		case entry := <-namech:
-			names = append(names, entry)
-		case err = <-errch:
-			return
+	for i := 0; i < lim; i++ {
+		res := <-replies
+		if res.err == nil {
+			names = append(names, res.name)
+		} else {
+			return nil, err
 		}
 	}
 	sort.Strings(names)
