@@ -338,7 +338,7 @@ func (c *Conn) Getdir(dir string, rev int64, off, lim int) (names []string, err 
 	if err != nil {
 		return nil, err
 	}
-	if off+lim > size || lim == -1 {
+	if off+lim > size || lim < 0 {
 		lim = size - off
 	}
 	names = make([]string, lim)
