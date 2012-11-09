@@ -23,5 +23,3 @@ func basename(path string) string {
 	}
 	return path
 }
-
-type WalkFunc func(string, *FileInfo, error) error

@@ -25,15 +25,33 @@ func find(path string) {
 		}
 	}
 
-	v := func(path string, f *doozer.FileInfo, e error) (err error) {
-		if e != nil {
+	v := make(vis)
+	errs := make(chan error)
+	go func() {
+		doozer.Walk(c, *rrev, path, v, errs)
+		close(v)
+	}()
+
+	for {
+		select {
+		case path, ok := <-v:
+			if !ok {
+				return
+			}
+			fmt.Println(path)
+		case err := <-errs:
 			fmt.Fprintln(os.Stderr, err)
-			return
 		}
-
-		fmt.Println(path)
-
-		return nil
 	}
-	doozer.Walk(c, *rrev, path, v)
+}
+
+type vis chan string
+
+func (v vis) VisitDir(path string, f *doozer.FileInfo) bool {
+	v <- path
+	return true
+}
+
+func (v vis) VisitFile(path string, f *doozer.FileInfo) {
+	v <- path
 }
